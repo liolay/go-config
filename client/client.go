@@ -7,10 +7,10 @@ import (
 	"io/ioutil"
 	"encoding/json"
 	"os"
-	"fmt"
 	"path/filepath"
 	"bytes"
 	"flag"
+	"log"
 )
 
 type ConfigInfo struct {
@@ -44,7 +44,7 @@ func main() {
 		for _, homePath := range homePaths {
 			configInfos, err := fetch(homePath)
 			if err != nil {
-				fmt.Println(err)
+				log.Println(err)
 				continue
 			}
 
@@ -61,7 +61,7 @@ func createFile(configInfos []ConfigInfo, configRoot string) {
 
 		configFile, err := os.OpenFile(filePath, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, os.ModePerm)
 		if err != nil {
-			fmt.Println(err)
+			log.Println(err)
 			continue
 		}
 		defer configFile.Close()
@@ -75,7 +75,7 @@ func fetch(configRoot string) ([]ConfigInfo, error) {
 	if !force {
 		fileStateBytes, e := json.Marshal(fds(configRoot))
 		if e != nil {
-			fmt.Println(e)
+			log.Println(e)
 		}
 		buffer = bytes.NewBuffer(fileStateBytes)
 	}
@@ -104,12 +104,11 @@ func fds(rootPath string) map[string]time.Time {
 		}
 
 		if err != nil {
-			fmt.Print(err)
+			log.Println(err)
 			return err
 		}
 
 		fds[strings.Replace(path, rootPath, "", 1)] = info.ModTime()
-
 		return nil
 	})
 

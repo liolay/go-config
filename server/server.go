@@ -76,9 +76,7 @@ func main() {
 	console := bufio.NewWriter(os.Stdout)
 	console.WriteString("server stated at port:" + port + ",home:" + homePath + ",repo:" + repo)
 	console.Flush()
-
 	log.Fatal(http.ListenAndServe(":"+port, nil))
-
 }
 
 func parseClientFDS(request *http.Request) map[string]time.Time {
