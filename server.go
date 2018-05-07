@@ -10,8 +10,8 @@ import (
 	"io/ioutil"
 	"strings"
 	"flag"
-	"bufio"
 	"strconv"
+	"github.com/gorilla/websocket"
 )
 
 type ConfigInfo struct {
@@ -24,6 +24,8 @@ var (
 	homePath string
 	repo     string
 	port     string
+	upgrader = websocket.Upgrader{} // use default options
+
 )
 
 func init() {
@@ -39,43 +41,59 @@ func init() {
 
 func main() {
 	http.HandleFunc("/sync", func(writer http.ResponseWriter, request *http.Request) {
-		clientFDS := parseClientFDS(request)
-		var configInfos []ConfigInfo
-
-		filepath.Walk(homePath+repo, func(path string, info os.FileInfo, err error) error {
-			if info == nil || info.IsDir() {
-				return nil
-			}
-
-			filePath := strings.Replace(path, homePath, "", 1)
-			if !changed(clientFDS, filePath, info.ModTime()) {
-				return nil
-			}
-
-			fileContent, err := ioutil.ReadFile(path)
+		connection, err := upgrader.Upgrade(writer, request, nil)
+		if err != nil {
+			log.Print(err)
+			return
+		}
+		defer connection.Close()
+		for {
+			messageType, message, err := connection.ReadMessage()
 			if err != nil {
-				return err
+				log.Println(err)
+				continue
 			}
 
-			configInfos = append(configInfos, ConfigInfo{
-				Name:       filePath,
-				Content:    fileContent,
-				UpdateTime: info.ModTime(),
+			clientFDS := parseClientFds(message)
+			var configInfos []ConfigInfo
+
+			filepath.Walk(homePath+repo, func(path string, info os.FileInfo, err error) error {
+				if info == nil || info.IsDir() {
+					return nil
+				}
+
+				filePath := strings.Replace(path, homePath, "", 1)
+				if !changed(clientFDS, filePath, info.ModTime()) {
+					return nil
+				}
+
+				fileContent, err := ioutil.ReadFile(path)
+				if err != nil {
+					return err
+				}
+
+				configInfos = append(configInfos, ConfigInfo{
+					Name:       filePath,
+					Content:    fileContent,
+					UpdateTime: info.ModTime(),
+				})
+
+				return nil
 			})
 
-			return nil
-		})
-
-		repoBytes, _ := json.Marshal(configInfos)
-
-		writer.Header().Add("Content-Type", "application/json;charset=utf-8")
-		writer.WriteHeader(200)
-		writer.Write(repoBytes)
+			repoBytes, err := json.Marshal(configInfos)
+			if err != nil {
+				log.Println(err)
+				continue
+			}
+			err = connection.WriteMessage(messageType, repoBytes)
+			if err != nil {
+				log.Println(err)
+				continue
+			}
+		}
 	})
 
-	console := bufio.NewWriter(os.Stdout)
-	console.WriteString("server stated at port:" + port + ",home:" + homePath + ",repo:" + repo)
-	console.Flush()
 	log.Fatal(http.ListenAndServe(":"+port, nil))
 }
 
@@ -85,6 +103,13 @@ func parseClientFDS(request *http.Request) map[string]time.Time {
 		if jsonString, err := ioutil.ReadAll(request.Body); err == nil {
 			json.Unmarshal(jsonString, &requestFDS)
 		}
+	}
+	return requestFDS
+}
+func parseClientFds(message []byte) map[string]time.Time {
+	var requestFDS map[string]time.Time
+	if message != nil {
+		json.Unmarshal(message, &requestFDS)
 	}
 	return requestFDS
 }
