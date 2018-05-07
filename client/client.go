@@ -42,14 +42,12 @@ func init() {
 func main() {
 	for range time.Tick(time.Duration(tick) * time.Second) {
 		for _, homePath := range homePaths {
-			fmt.Println(homePath)
 			configInfos, err := fetch(homePath)
 			if err != nil {
 				fmt.Println(err)
 				continue
 			}
 
-			fmt.Println(configInfos)
 			createFile(configInfos, homePath)
 		}
 	}
