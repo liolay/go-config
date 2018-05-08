@@ -3,7 +3,6 @@ package util
 import (
 	"github.com/fsnotify/fsnotify"
 	"log"
-	"net/http"
 	"os"
 )
 
@@ -52,16 +51,4 @@ func WatchFile(path string) (*fsnotify.Watcher, chan Event) {
 	}
 
 	return watcher, signal
-}
-
-func main() {
-	watcher, signal := WatchFile("/Users/liolay/config-repo")
-	go func() {
-		for {
-			a := <-signal
-			log.Println("=========",a.Name)
-		}
-	}()
-	log.Fatal(http.ListenAndServe(":8080", nil))
-	watcher.Close()
 }
