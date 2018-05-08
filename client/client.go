@@ -73,6 +73,7 @@ func main() {
 
 		select {
 		case <-done:
+			println("hahahahahhaha")
 			return
 		case <-interrupt:
 			log.Println("interrupt")
