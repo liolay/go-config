@@ -41,60 +41,79 @@ func createConnection() *websocket.Conn {
 	return connection
 }
 
-func main() {
-	interrupt := make(chan os.Signal, 1)
-	signal.Notify(interrupt, os.Interrupt, os.Kill)
-
+var con *websocket.Conn
+func readMessage() *websocket.Conn {
 	connection := createConnection()
-	defer connection.Close()
-
-	done := make(chan struct{})
+	con = connection
 	go func() {
-		defer close(done)
+		defer readMessage()
 		for {
 			var syncFd []_struct.SyncFileDescribe
 			err := connection.ReadJSON(&syncFd)
 			if err != nil && err != io.ErrUnexpectedEOF {
 				log.Println("server is down,reconnect after 2 seconds:", err)
 				time.Sleep(2 * time.Second)
-				main()
 				return
 			}
 			sync(syncFd)
 		}
-
 	}()
 
 	for _, root := range homePaths {
 		connection.WriteJSON(_struct.NewFileDescribe(root))
 	}
 
+	return connection
+}
+func main() {
+	interrupt := make(chan os.Signal, 1)
+	signal.Notify(interrupt, os.Interrupt, os.Kill)
+	//done := make(chan struct{})
+	connection := readMessage()
+	//connection := createConnection()
+	//defer connection.Close()
+	//
+	//done := make(chan struct{})
+	//go func() {
+	//	defer main()
+	//
+	//	defer close(done)
+	//	for {
+	//		var syncFd []_struct.SyncFileDescribe
+	//		err := connection.ReadJSON(&syncFd)
+	//		if err != nil && err != io.ErrUnexpectedEOF {
+	//			log.Println("server is down,reconnect after 2 seconds:", err)
+	//			time.Sleep(2 * time.Second)
+	//			return
+	//		}
+	//		sync(syncFd)
+	//	}
+	//
+	//}()
+	//
+	//for _, root := range homePaths {
+	//	connection.WriteJSON(_struct.NewFileDescribe(root))
+	//}
+
 	for {
 
 		select {
-		case <-done:
-			println("hahahahahhaha")
-			return
 		case <-interrupt:
 			log.Println("interrupt")
 
 			// Cleanly close the connection by sending a close message and then
 			// waiting (with timeout) for the server to close the connection.
+			println(connection == con)
 			err := connection.WriteMessage(websocket.CloseMessage, websocket.FormatCloseMessage(websocket.CloseNormalClosure, ""))
 			if err != nil {
 				log.Println("connection.WriteMessage(websocket.CloseMessage:", err)
 			}
-			select {
-			case <-done:
-				println("===============")
-			case <-time.After(time.Second):
-			}
+			time.Sleep(time.Second)
 			return
 		}
 
 	}
 }
-
 
 func sync(syncFileDescribes []_struct.SyncFileDescribe) {
 	for _, fd := range syncFileDescribes {
