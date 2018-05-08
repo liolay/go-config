@@ -18,12 +18,6 @@ func (fd *FileDescribe) Json() ([]byte, error) {
 	return json.Marshal(fd)
 }
 
-func ParseFileDescribe(jsonByte []byte) (FileDescribe, error) {
-	var fd FileDescribe
-	err := json.Unmarshal(jsonByte, &fd)
-	return fd, err
-}
-
 func NewFileDescribe(rootPath string) *FileDescribe {
 	describe := make(map[string][]byte)
 	filepath.Walk(rootPath, func(path string, info os.FileInfo, err error) error {
