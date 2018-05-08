@@ -14,15 +14,16 @@ import (
 )
 
 var (
-	homePaths []string
-	server    string
-	tick      int
+	homePaths  []string
+	server     string
+	tick       int
+	connection *websocket.Conn
 )
 
 func init() {
 	commandHomePath := flag.String("home", os.Getenv("HOME")+"/haha", "dirs to store config files from server,multi dirs use comma split")
 	commandServer := flag.String("server", "localhost:5337", "server to fetch config files")
-	commandTick := flag.Int("tick", 15, "interval second between two fetch request")
+	commandTick := flag.Int("tick", 15, "interval second while reconnect to server ")
 	flag.Parse()
 	homePaths = strings.Split(*commandHomePath, ",")
 	server = *commandServer
@@ -34,25 +35,25 @@ func createConnection() *websocket.Conn {
 	log.Printf("connecting to %s", serverUrl.String())
 	connection, _, err := websocket.DefaultDialer.Dial(serverUrl.String(), nil)
 	if err != nil {
-		log.Println("can't dial,retry after 3 seconds:", err)
-		time.Sleep(3 * time.Second)
+		log.Println("can't dial", err)
+		log.Printf("retry after %d seconds...", tick)
+		time.Sleep(time.Duration(tick) * time.Second)
 		return createConnection()
 	}
 	return connection
 }
 
-var con *websocket.Conn
-func readMessage() *websocket.Conn {
-	connection := createConnection()
-	con = connection
+func readMessage() {
+	connection = createConnection()
 	go func() {
 		defer readMessage()
 		for {
 			var syncFd []_struct.SyncFileDescribe
 			err := connection.ReadJSON(&syncFd)
 			if err != nil && err != io.ErrUnexpectedEOF {
-				log.Println("server is down,reconnect after 2 seconds:", err)
-				time.Sleep(2 * time.Second)
+				log.Println("lost connection:", err)
+				log.Printf("reconnect after %d seconds...", tick)
+				time.Sleep(time.Duration(tick) * time.Second)
 				return
 			}
 			sync(syncFd)
@@ -62,57 +63,22 @@ func readMessage() *websocket.Conn {
 	for _, root := range homePaths {
 		connection.WriteJSON(_struct.NewFileDescribe(root))
 	}
-
-	return connection
 }
 func main() {
 	interrupt := make(chan os.Signal, 1)
 	signal.Notify(interrupt, os.Interrupt, os.Kill)
-	//done := make(chan struct{})
-	connection := readMessage()
-	//connection := createConnection()
-	//defer connection.Close()
-	//
-	//done := make(chan struct{})
-	//go func() {
-	//	defer main()
-	//
-	//	defer close(done)
-	//	for {
-	//		var syncFd []_struct.SyncFileDescribe
-	//		err := connection.ReadJSON(&syncFd)
-	//		if err != nil && err != io.ErrUnexpectedEOF {
-	//			log.Println("server is down,reconnect after 2 seconds:", err)
-	//			time.Sleep(2 * time.Second)
-	//			return
-	//		}
-	//		sync(syncFd)
-	//	}
-	//
-	//}()
-	//
-	//for _, root := range homePaths {
-	//	connection.WriteJSON(_struct.NewFileDescribe(root))
-	//}
+
+	readMessage()
 
 	for {
-
 		select {
 		case <-interrupt:
-			log.Println("interrupt")
-
-			// Cleanly close the connection by sending a close message and then
-			// waiting (with timeout) for the server to close the connection.
-			println(connection == con)
-			err := connection.WriteMessage(websocket.CloseMessage, websocket.FormatCloseMessage(websocket.CloseNormalClosure, ""))
-			if err != nil {
-				log.Println("connection.WriteMessage(websocket.CloseMessage:", err)
-			}
+			_ = connection.WriteMessage(websocket.CloseMessage, websocket.FormatCloseMessage(websocket.CloseNormalClosure, ""))
 			time.Sleep(time.Second)
 			return
 		}
-
 	}
+
 }
 
 func sync(syncFileDescribes []_struct.SyncFileDescribe) {
