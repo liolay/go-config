@@ -10,7 +10,7 @@ import (
 	"io/ioutil"
 	"net/http"
 	"log"
-	"go-config/struct"
+	"go-config/common"
 	"io"
 )
 
@@ -43,8 +43,46 @@ func hashFile(path string, beforeWrite func(string, string)) {
 	})
 }
 
+var fileChangeSignal = make(chan []common.SyncFileDescribe, 10)
+
+func sync(writer http.ResponseWriter, request *http.Request) {
+	connection, err := upgrader.Upgrade(writer, request, nil)
+	if err != nil {
+		log.Print("upgrade error:", err)
+		return
+	}
+	defer connection.Close()
+
+	done := make(chan struct{})
+	go func() {
+		defer close(done)
+		for {
+			var fd common.FileDescribe
+			if err := connection.ReadJSON(&fd); err != nil && err != io.ErrUnexpectedEOF {
+				log.Println("client down", err)
+				return
+			}
+			newSyncFileDescribe := common.NewSyncFileDescribe(homePath, repo, fd)
+			err = connection.WriteJSON(newSyncFileDescribe)
+		}
+	}()
+
+	for {
+		select {
+		case <-done:
+			return
+		case file := <-fileChangeSignal:
+			err = connection.WriteJSON(file)
+		}
+
+	}
+}
+
+func refresh(writer http.ResponseWriter, request *http.Request) {
+
+}
+
 func main() {
-	fileChangeSignal := make(chan []_struct.SyncFileDescribe, 10)
 
 	hashFile(homePath+repo, nil)
 
@@ -55,13 +93,15 @@ func main() {
 			event := <-changeSignal
 			hashFile(event.Name, func(file string, newHash string) {
 				hashFileName := file + ".md5"
-				oldHash, e := ioutil.ReadFile(hashFileName)
-				if e == nil && string(oldHash) != newHash {
+				if oldHash, e := ioutil.ReadFile(hashFileName); e == nil && string(oldHash) != newHash {
+
 					fileContent, err := ioutil.ReadFile(file)
 					if err != nil {
 						log.Println("file cant be sync to client", err)
+						return
 					}
-					fileChangeSignal <- []_struct.SyncFileDescribe{
+
+					fileChangeSignal <- []common.SyncFileDescribe{
 						{
 							Name:    strings.Replace(file, homePath, "", 1),
 							Content: fileContent,
@@ -76,41 +116,8 @@ func main() {
 		}
 	}()
 
-	http.HandleFunc("/sync", func(writer http.ResponseWriter, request *http.Request) {
-		connection, err := upgrader.Upgrade(writer, request, nil)
-		if err != nil {
-			log.Print("upgrade error:", err)
-			return
-		}
-		defer connection.Close()
-
-		done := make(chan struct{})
-		go func() {
-			defer close(done)
-			for {
-				var fd _struct.FileDescribe
-				err := connection.ReadJSON(&fd)
-				if err!=nil && err != io.ErrUnexpectedEOF {
-					log.Println("client down", err)
-					return
-				}
-
-				newSyncFileDescribe := _struct.NewSyncFileDescribe(homePath, repo, fd)
-				err = connection.WriteJSON(newSyncFileDescribe)
-			}
-		}()
-
-		for {
-			select {
-			case <-done:
-				return
-			case file := <-fileChangeSignal:
-				err = connection.WriteJSON(file)
-			}
-
-		}
-	})
+	http.HandleFunc("/sync", sync)
+	http.HandleFunc("/refresh", refresh)
 
 	log.Fatal(http.ListenAndServe(":"+port, nil))
-
 }

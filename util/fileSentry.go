@@ -4,6 +4,7 @@ import (
 	"github.com/fsnotify/fsnotify"
 	"log"
 	"os"
+	"path/filepath"
 )
 
 type Event struct {
@@ -16,7 +17,6 @@ func WatchFile(path string) (*fsnotify.Watcher, chan Event) {
 	if err != nil {
 		log.Fatal(err)
 	}
-	//defer watcher.Close()
 
 	signal := make(chan Event)
 	go func() {
@@ -26,27 +26,32 @@ func WatchFile(path string) (*fsnotify.Watcher, chan Event) {
 				switch {
 				case event.Op&fsnotify.Write == fsnotify.Write:
 					signal <- Event{event.Name, fsnotify.Write}
+
 				case event.Op&fsnotify.Create == fsnotify.Create:
-					info, e := os.Stat(event.Name)
-					if e == nil && info.IsDir() {
+					if info, err := os.Stat(event.Name); err == nil && info.IsDir() {
 						watcher.Add(event.Name)
+					} else {
+						signal <- Event{event.Name, fsnotify.Create}
 					}
-					signal <- Event{event.Name, fsnotify.Create}
+
 				case event.Op&fsnotify.Remove == fsnotify.Remove:
-					info, e := os.Stat(event.Name)
-					if e == nil && info.IsDir() {
-						watcher.Remove(event.Name)
-					}
-					signal <- Event{event.Name, fsnotify.Remove}
+					watcher.Remove(event.Name)
 				}
+
 			case err := <-watcher.Errors:
 				log.Println("error:", err)
 			}
 		}
 	}()
 
-	err = watcher.Add(path)
-	if err != nil {
+	filepath.Walk(path, func(p string, info os.FileInfo, err error) error {
+		if info != nil && info.IsDir() {
+			watcher.Add(path)
+		}
+		return nil
+	})
+
+	if err = watcher.Add(path); err != nil {
 		log.Fatal(err)
 	}
 

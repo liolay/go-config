@@ -1,7 +1,6 @@
-package _struct
+package common
 
 import (
-	"encoding/json"
 	"path/filepath"
 	"os"
 	"log"
@@ -14,11 +13,11 @@ type FileDescribe struct {
 	Describe map[string][]byte
 }
 
-func (fd *FileDescribe) Json() ([]byte, error) {
-	return json.Marshal(fd)
-}
-
 func NewFileDescribe(rootPath string) *FileDescribe {
+	if _, err := os.Stat(rootPath); os.IsNotExist(err) {
+		os.MkdirAll(rootPath, os.ModePerm)
+	}
+
 	describe := make(map[string][]byte)
 	filepath.Walk(rootPath, func(path string, info os.FileInfo, err error) error {
 		if info == nil || info.IsDir() {
@@ -30,8 +29,7 @@ func NewFileDescribe(rootPath string) *FileDescribe {
 			return err
 		}
 
-		hashBytes, err := ioutil.ReadFile(path + ".md5")
-		if err == nil {
+		if hashBytes, err := ioutil.ReadFile(path + ".md5"); err == nil {
 			describe[strings.Replace(path, rootPath, "", 1)] = hashBytes
 		}
 		return nil
@@ -41,6 +39,3 @@ func NewFileDescribe(rootPath string) *FileDescribe {
 		Describe: describe,
 	}
 }
-
-
-
