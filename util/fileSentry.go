@@ -46,7 +46,7 @@ func WatchFile(path string) (*fsnotify.Watcher, chan Event) {
 
 	filepath.Walk(path, func(p string, info os.FileInfo, err error) error {
 		if info != nil && info.IsDir() {
-			watcher.Add(path)
+			watcher.Add(p)
 		}
 		return nil
 	})

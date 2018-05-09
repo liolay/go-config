@@ -48,7 +48,7 @@ var fileChangeSignal = make(chan []common.SyncFileDescribe, 10)
 func sync(writer http.ResponseWriter, request *http.Request) {
 	connection, err := upgrader.Upgrade(writer, request, nil)
 	if err != nil {
-		log.Print("upgrade error:", err)
+		log.Println("upgrade error:", err)
 		return
 	}
 	defer connection.Close()
@@ -93,7 +93,7 @@ func main() {
 			event := <-changeSignal
 			hashFile(event.Name, func(file string, newHash string) {
 				hashFileName := file + ".md5"
-				if oldHash, e := ioutil.ReadFile(hashFileName); e == nil && string(oldHash) != newHash {
+				if oldHash, _ := ioutil.ReadFile(hashFileName); string(oldHash) != newHash {
 
 					fileContent, err := ioutil.ReadFile(file)
 					if err != nil {

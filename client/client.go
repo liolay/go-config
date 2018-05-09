@@ -96,29 +96,20 @@ func main() {
 
 func sync(syncFileDescribes []common.SyncFileDescribe) {
 	for _, fd := range syncFileDescribes {
-		log.Printf("%v",fd)
 		if fd.Root != "" {
-			create(fd.Root+fd.Name, fd.Content, fd.UpdateTime)
+			create(fd.Root+fd.Name, fd.Content)
 			continue
 		}
 
 		for _, root := range config.HomePath {
-			create(root+fd.Name, fd.Content, fd.UpdateTime)
+			create(root+fd.Name, fd.Content)
 		}
 	}
 }
 
-func create(filePath string, content []byte, time time.Time) {
+func create(filePath string, content []byte) {
 	createParentDir(filePath)
-
-	configFile, err := os.OpenFile(filePath, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, os.ModePerm)
-	if err != nil {
-		log.Println(err)
-		return
-	}
-	defer configFile.Close()
-	configFile.Write(content)
-	os.Chtimes(filePath, time, time)
+	ioutil.WriteFile(filePath,content, os.ModePerm)
 }
 
 func createParentDir(filePath string) {
