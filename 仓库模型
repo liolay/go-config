@@ -1,0 +1,57 @@
+仓库模型
+
+i.所有应用在一个仓库
+  		子目录： 区分应用   (获取配置时递归该目录 根据profile来找文件）
+  		app:    区分子目录 (获取配置时递归该目录 根据profile来找文件）
+  		label： 区分环境 
+  		profile： 区分文件
+
+	  	master (label)
+	  		app1 (app name)
+	  			xxx.conf
+	  			xxx-profile.conf
+	  		app2
+	  			xxx.conf	
+	  	test 
+	  		app1
+	  			xxx.conf
+	  		app2
+	  			xxx.conf
+
+ii.每个应用单独的仓库
+	app:     区分仓库 （git@github.com/app.git ）
+	label：  区分环境
+	profile: 区分文件
+
+	master (label)
+		
+			xxx.conf
+			xxx-profile.conf
+		app2
+			xxx.conf	
+	test 
+		app1
+			xxx.conf
+		app2
+			xxx.conf
+
+	app1.git 
+	.
+	.
+	.
+
+iii.每个应用，每个环境单独的仓库
+	app:    ---------\
+					  ========> 区分仓库+环境  （git@github.com/app-test.git）	
+	profile:---------/   
+	label: 区分版本
+	app-test.git:
+		master (label)
+			xxx.conf
+			xxx-redis.conf
+
+	app-dev.git	
+		master (label)
+			xxx.conf
+			xxx-redis.conf
+
