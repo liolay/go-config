@@ -1,21 +1,18 @@
-#dirs to store config files from server
-homePath:
-  - /Users/liolay/haha
 #server to fetch config files
 server: localhost:5337
 #server to fetch config files
 tick: 5
 #fetch config
-apps:
+app:
   - name: app01-name   #app
     profile: default   #profile
     label: master      #git branch name or commit id
-    rootPath:          #store path
+    homePath:          #dirs to store config files from server
       - /Users/liolay
   - name: app-name
     profile: default
     label: master
-    rootPath:
+    homePath:
       - /Users/liolay
       - /Users/liolay1
 

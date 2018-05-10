@@ -5,27 +5,41 @@ import (
 )
 
 type ClientConfig struct {
+	Server string    `yaml:"server"`
+	Tick   int       `yaml:"tick"`
+	App    []AppNode `yaml:"app"`
+}
+
+type AppNode struct {
+	Name     string   `yaml:"name"`
+	Profile  string   `yaml:"profile"`
+	Label    string   `yaml:"lable"`
 	HomePath []string `yaml:"homePath"`
-	Server   string   `yaml:"server"`
-	Tick     int      `yaml:"tick"`
-	Apps []struct {
-		Name     string   `yaml:"name"`
-		Profile  string   `yaml:"profile"`
-		Label    string   `yaml:"lable"`
-		RootPath []string `yaml:"rootPath"`
-	} `yaml:"apps"`
 }
 
 type ServerConfig struct {
+	HomePath     string `yaml:"homePath"`
+	Port         int    `yaml:"port"`
 	DefaultRepo  string `yaml:"defaultRepo"`
 	SshKey       string `yaml:"sshKey"`
 	SearchSubDir bool   `yaml:"searchSubDir"`
 
-	Route []struct {
-		Pattern []string `yaml:"pattern"`
-		Repo    string   `yaml:"repo"`
-	} `yaml:"route"`
+	Route []RRoute `yaml:"route"`
 }
+
+type RRoute struct {
+	Pattern []string `yaml:"pattern"`
+	Repo    string   `yaml:"repo"`
+	Model   RepoModel
+}
+
+const (
+	OnlyOne       RepoModel = 0
+	AppOne        RepoModel = 1
+	AppProfileOne RepoModel = 2
+)
+
+type RepoModel int
 
 func parseConfig(content []byte, t interface{}) (error) {
 	err := yaml.Unmarshal(content, t)

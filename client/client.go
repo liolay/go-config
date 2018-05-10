@@ -2,7 +2,6 @@ package main
 
 import (
 	"time"
-	"strings"
 	"os"
 	"flag"
 	"log"
@@ -13,6 +12,7 @@ import (
 	"go-config/util"
 	"io/ioutil"
 	"os/signal"
+	"encoding/json"
 )
 
 const defaultConfig = "configClient.yml"
@@ -59,21 +59,34 @@ func readMessage() {
 	go func() {
 		defer readMessage()
 		for {
-			var syncFd []common.SyncFileDescribe
-			if err := connection.ReadJSON(&syncFd); err != nil && err != io.ErrUnexpectedEOF {
+			var message common.Message
+			if err := connection.ReadJSON(&message); err != nil && err != io.ErrUnexpectedEOF {
 				log.Println("lost connection:", err)
 				log.Printf("reconnect after %d seconds...", config.Tick)
 				ticker = time.NewTicker(time.Duration(config.Tick) * time.Second)
 				<-ticker.C
 				return
 			}
-			sync(syncFd)
+
+			if message.MessageType == common.ClientConnectReply {
+				err := message.Data
+				if err != nil {
+					log.Fatalln("client config file cant be parsed by server")
+					panic(string(err))
+				}
+				continue
+			}
+
+			//sync(syncFd)
 		}
 	}()
 
-	for _, root := range config.HomePath {
-		connection.WriteJSON(common.NewFileDescribe(root))
+	configBytes, err := json.Marshal(config.App)
+
+	if err != nil {
+		panic(err)
 	}
+	connection.WriteJSON(common.NewClientConnectMessage(configBytes))
 }
 
 func main() {
@@ -94,29 +107,30 @@ func main() {
 	<-done
 }
 
-func sync(syncFileDescribes []common.SyncFileDescribe) {
-	for _, fd := range syncFileDescribes {
-		if fd.Root != "" {
-			create(fd.Root+fd.Name, fd.Content)
-			continue
-		}
-
-		for _, root := range config.HomePath {
-			create(root+fd.Name, fd.Content)
-		}
-	}
-}
-
-func create(filePath string, content []byte) {
-	createParentDir(filePath)
-	ioutil.WriteFile(filePath,content, os.ModePerm)
-}
-
-func createParentDir(filePath string) {
-	parentPath := string(filePath[:strings.LastIndex(filePath, "/")])
-	if _, err := os.Stat(parentPath); os.IsNotExist(err) {
-		if err = os.MkdirAll(parentPath, os.ModePerm); err != nil {
-			panic(err)
-		}
-	}
-}
+//
+//func sync(syncFileDescribes []common.SyncFileDescribe) {
+//	for _, fd := range syncFileDescribes {
+//		if fd.Root != "" {
+//			create(fd.Root+fd.Name, fd.Content)
+//			continue
+//		}
+//
+//		for _, root := range config.HomePath {
+//			create(root+fd.Name, fd.Content)
+//		}
+//	}
+//}
+//
+//func create(filePath string, content []byte) {
+//	createParentDir(filePath)
+//	ioutil.WriteFile(filePath, content, os.ModePerm)
+//}
+//
+//func createParentDir(filePath string) {
+//	parentPath := string(filePath[:strings.LastIndex(filePath, "/")])
+//	if _, err := os.Stat(parentPath); os.IsNotExist(err) {
+//		if err = os.MkdirAll(parentPath, os.ModePerm); err != nil {
+//			panic(err)
+//		}
+//	}
+//}
