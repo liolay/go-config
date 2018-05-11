@@ -77,6 +77,26 @@ func readMessage() {
 				continue
 			}
 
+			if message.MessageType == common.ServerPushFile {
+				files := make([]common.ServerPushedFile, 5)
+				json.Unmarshal(message.Data, files)
+
+				for _, file := range files {
+					for _, app := range config.App {
+						if file.App == app.Name {
+							for _, home := range app.HomePath {
+								fileFolder := home + "/" + file.App
+								if _, err := os.Stat(fileFolder); os.IsNotExist(err) {
+									os.MkdirAll(fileFolder, os.ModePerm)
+								}
+							}
+							break
+						}
+					}
+				}
+				continue
+			}
+
 			//sync(syncFd)
 		}
 	}()

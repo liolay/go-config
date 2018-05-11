@@ -4,15 +4,8 @@ server: localhost:5337
 tick: 5
 #fetch config
 app:
-  - name: app01-name   #app
-    profile: default   #profile
+  - name: app01   #app
     label: master      #git branch name or commit id
     homePath:          #dirs to store config files from server
-      - /Users/liolay
-  - name: app-name
-    profile: default
-    label: master
-    homePath:
-      - /Users/liolay
-      - /Users/liolay1
+      - /Users/liolay/app01
 

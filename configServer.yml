@@ -1,6 +1,6 @@
-homePath:
+homePath: /Users/liolay/haha
 port: 5337
-defaultRepo: https://github.com/liolay/go-config.git
+defaultRepo: git@github.com:liolay/go-config-repo-all.git
 sshKey: |-
         -----BEGIN RSA PRIVATE KEY-----
         MIIEpAIBAAKCAQEAyB+gq1xjj4HCe4hPLfA3a9y4pXVhrJfQQheHR1Mj9Y2eBJTm
@@ -27,13 +27,12 @@ sshKey: |-
         ImgI7gT0jMY6AiJGjw8O8Rx8+LC2PELQ5tF8EQboOnA6YtvsA54JC80aJKn/t7hO
         bR/YuQKBgQDik5Es/Y2NM0JSKQwy7myGP4g5SadZd5Pv4r89OY/8mEOhKvHlaxki
         M2o2is6RiFTKn/aFWXl0/QKXyupq35jsesq78y29zoUuph7J5PYcLgFF2t49q3B4
-        1Pn/53pMethW8zhphp3fM77vBkUu/NcusttbQjtdLEI7dkR/kqEc4fQ==
+        Pn/53pMethW8zhphp3fM77vBkUu/NcusttbQjtdLEI7dkR/kqEc4fQ==
         -----END RSA PRIVATE KEY-----
-searchSubDir: true  #set this while all u config in a center repo which locate by subDir
-route:
-  - pattern:
-      - name/profile
-    repo: git@github.com:liolay/${app}.git
-  - pattern:
-      - n*/pro*
-    repo: git@github.com:liolay/${app}-${profile}.git
+#route:
+#  - pattern:
+#      - */*
+#    repo: git@github.com:liolay/${app}.git
+#  - pattern:
+#      - n*/pro*
+#    repo: git@github.com:liolay/${app}-${profile}.git

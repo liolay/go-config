@@ -15,6 +15,8 @@ import (
 	"strings"
 	"os"
 	"gopkg.in/src-d/go-git.v4"
+	"gopkg.in/src-d/go-git.v4/plumbing/object"
+	"fmt"
 )
 
 const (
@@ -64,14 +66,21 @@ func repoModel(repo string) util.RepoModel {
 	return repoModel
 }
 
-func patterMatch(pattern string, str string) bool {
+func patternMatch(pattern string, strs ...string) bool {
 	if len(strings.Trim(pattern, "*")) != 0 {
-		if strings.HasPrefix(pattern, "*") && strings.HasSuffix(str, strings.Trim(pattern, "*")) {
-			return false
+		for _, str := range strs {
+			if strings.HasPrefix(pattern, "*") {
+				if strings.HasSuffix(str, strings.Trim(pattern, "*")) {
+					return true
+				}
+				continue
+			}
+
+			if strings.HasPrefix(str, strings.Trim(pattern, "*")) {
+				return true
+			}
 		}
-		if strings.HasSuffix(pattern, "*") && strings.HasPrefix(str, strings.Trim(pattern, "*")) {
-			return false
-		}
+		return false
 	}
 	return true
 }
@@ -87,10 +96,10 @@ func findRoute(appNode util.AppNode) *util.RRoute {
 			app := pattern[0]
 			profile := pattern[1]
 
-			if !patterMatch(app, appNode.Name) {
+			if !patternMatch(app, appNode.Name) {
 				continue
 			}
-			if !patterMatch(profile, appNode.Profile) {
+			if !patternMatch(profile, strings.Split(appNode.Profile, ",")...) {
 				continue
 			}
 			route.Repo = buildRepoUrl(route.Repo, appNode.Name, appNode.Profile)
@@ -101,22 +110,106 @@ func findRoute(appNode util.AppNode) *util.RRoute {
 	return &util.RRoute{Repo: buildRepoUrl(config.DefaultRepo, appNode.Name, appNode.Profile), Model: repoModel(config.DefaultRepo)}
 }
 
-func cloneRepo(repoUrl string) *git.Repository {
+func buildLocalRepoPath(repoUrl string) string {
 	localRepoPath := strings.TrimSuffix(repoUrl, ".git")
-	localRepoPath = config.HomePath + localRepoPath[strings.LastIndex(localRepoPath, "/"):]
+	return config.HomePath + localRepoPath[strings.LastIndex(localRepoPath, "/"):]
+}
 
+func getRepo(repoUrl string, localRepoPath string) *git.Repository {
 	if _, err := os.Stat(localRepoPath); os.IsNotExist(err) {
 		lock, _ := locks.LoadOrStore(localRepoPath, new(sync.Mutex))
 		mutex := lock.(*sync.Mutex)
 		mutex.Lock()
 		defer mutex.Unlock()
-		if _, err := os.Stat(localRepoPath); err == nil || !os.IsNotExist(err) {
-			return openLocalRepo(localRepoPath)
+		print(localRepoPath)
+		println()
+		_, e := os.Stat(localRepoPath)
+		fmt.Print(e)
+		if _, err := os.Stat(localRepoPath); err == nil {
+			return util.OpenLocalRepo(localRepoPath)
 		}
 
-		return clone(config.HomePath, []byte(config.SshKey), repoUrl)
+		return util.Clone(config.HomePath, []byte(config.SshKey), repoUrl)
 	}
-	return openLocalRepo(localRepoPath)
+	return util.OpenLocalRepo(localRepoPath)
+}
+
+func readProfileFile(file *object.File, profile string) *common.ServerPushedFile {
+	for _, prof := range strings.Split(profile, ",") {
+		if !strings.HasSuffix(file.Name, "-"+prof) {
+			continue
+		}
+		reader, err := file.Reader()
+		if err != nil {
+			log.Fatal(err)
+			return nil
+		}
+
+		bytes, err := ioutil.ReadAll(reader)
+		if err != nil {
+			log.Fatal(err)
+			return nil
+		}
+
+		return &common.ServerPushedFile{
+			Name:    file.Name,
+			Content: bytes,
+		}
+	}
+	return nil
+}
+
+func findConfigFiles(repo *git.Repository, model util.RepoModel, app string, profile string, label string) []common.ServerPushedFile {
+	var files []common.ServerPushedFile
+
+	iterator := util.FileIterator(repo, label)
+	if iterator == nil {
+		return files
+	}
+
+	switch {
+	case model == util.OnlyOne:
+		iterator.ForEach(func(file *object.File) error {
+			if strings.Contains(file.Name, "/") {
+
+				if !strings.HasPrefix(file.Name, app+"/") {
+					return nil
+				}
+
+				if profileFile := readProfileFile(file, profile); profileFile != nil {
+					profileFile.App = app
+					_ = append(files, *profileFile)
+				}
+
+				return nil
+			}
+
+			if profileFile := readProfileFile(file, profile); profileFile != nil {
+				profileFile.App = app
+				_ = append(files, *profileFile)
+			}
+			return nil
+		})
+	case model == util.AppOne:
+		iterator.ForEach(func(file *object.File) error {
+			if profileFile := readProfileFile(file, profile); profileFile != nil {
+				profileFile.App = app
+				_ = append(files, *profileFile)
+			}
+			return nil
+		})
+	case model == util.AppProfileOne:
+		iterator.ForEach(func(file *object.File) error {
+			if profileFile := readProfileFile(file, ""); profileFile != nil {
+				profileFile.App = app
+				_ = append(files, *profileFile)
+			}
+			return nil
+		})
+	default:
+		log.Fatalf("unsupported model '%d'", model)
+	}
+	return files
 }
 
 func syncFile(writer http.ResponseWriter, request *http.Request) {
@@ -129,6 +222,7 @@ func syncFile(writer http.ResponseWriter, request *http.Request) {
 
 	done := make(chan struct{})
 	go func() {
+		defer close(done)
 		for {
 			var message common.Message
 			if err := connection.ReadJSON(&message); err != nil && err != io.ErrUnexpectedEOF {
@@ -137,25 +231,29 @@ func syncFile(writer http.ResponseWriter, request *http.Request) {
 			}
 
 			if common.ClientConnect == message.MessageType {
-				appNodeConfig := make([]util.AppNode, 5)
-				if err := json.Unmarshal(message.Data, appNodeConfig); err != nil {
+				appNodeConfig := make([]util.AppNode,5)
+				if err := json.Unmarshal(message.Data, &appNodeConfig); err != nil {
 					connection.WriteJSON(common.NewClientConnectReplyMessage([]byte(err.Error())))
+					return
 				}
 
 				for _, clientApp := range appNodeConfig {
 					route := findRoute(clientApp)
-					repo := cloneRepo(route.Repo)
+					repo := getRepo(route.Repo, buildLocalRepoPath(route.Repo))
 					if repo == nil {
 						log.Fatalln("cant find repo from disk,check you repostory url")
 						continue
 					}
-					//todo 开始判断仓库应用模式，推送文件
 
-					checkOut(repo, clientApp.Label)
-					switch {
-					case route.Model == util.OnlyOne:
-					case route.Model == util.AppOne:
-					case route.Model == util.AppProfileOne:
+					files := findConfigFiles(repo, route.Model, clientApp.Name, clientApp.Profile, clientApp.Label)
+					if files != nil {
+						bytes, err := json.Marshal(files)
+						if err != nil {
+							log.Fatal(err)
+							continue
+						}
+
+						connection.WriteJSON(bytes)
 					}
 				}
 			} else {
@@ -165,15 +263,6 @@ func syncFile(writer http.ResponseWriter, request *http.Request) {
 	}()
 
 	<-done
-	//for {
-	//	select {
-	//	case <-done:
-	//		return
-	//	case file := <-fileChangeSignal:
-	//		err = connection.WriteJSON(file)
-	//	}
-	//
-	//}
 }
 
 func refresh(writer http.ResponseWriter, request *http.Request) {
@@ -181,36 +270,6 @@ func refresh(writer http.ResponseWriter, request *http.Request) {
 }
 
 func main() {
-	//watcher, changeSignal := util.WatchFile(homePath + repo)
-	//defer watcher.Close()
-	//go func() {
-	//	for {
-	//		event := <-changeSignal
-	//		hashFile(event.Name, func(file string, newHash string) {
-	//			hashFileName := file + ".md5"
-	//			if oldHash, _ := ioutil.ReadFile(hashFileName); string(oldHash) != newHash {
-	//
-	//				fileContent, err := ioutil.ReadFile(file)
-	//				if err != nil {
-	//					log.Println("file cant be sync to client", err)
-	//					return
-	//				}
-	//
-	//				fileChangeSignal <- []common.SyncFileDescribe{
-	//					{
-	//						Name:    strings.Replace(file, homePath, "", 1),
-	//						Content: fileContent,
-	//					},
-	//					{
-	//						Name:    strings.Replace(hashFileName, homePath, "", 1),
-	//						Content: []byte(newHash),
-	//					},
-	//				}
-	//			}
-	//		})
-	//	}
-	//}()
-
 	http.HandleFunc("/sync", syncFile)
 	http.HandleFunc("/refresh", refresh)
 
