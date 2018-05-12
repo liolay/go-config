@@ -19,7 +19,7 @@ type AppNode struct {
 
 type ServerConfig struct {
 	HomePath     string `yaml:"homePath"`
-	Port         int    `yaml:"port"`
+	Port         string    `yaml:"port"`
 	DefaultRepo  string `yaml:"defaultRepo"`
 	SshKey       string `yaml:"sshKey"`
 	SearchSubDir bool   `yaml:"searchSubDir"`

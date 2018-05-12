@@ -4,7 +4,6 @@ import (
 	"go-config/util"
 	"flag"
 	"github.com/gorilla/websocket"
-	"strconv"
 	"io/ioutil"
 	"net/http"
 	"log"
@@ -17,6 +16,7 @@ import (
 	"gopkg.in/src-d/go-git.v4"
 	"gopkg.in/src-d/go-git.v4/plumbing/object"
 	"path/filepath"
+	"github.com/julienschmidt/httprouter"
 )
 
 const (
@@ -210,15 +210,47 @@ func findConfigFiles(repo *git.Repository, model util.RepoModel, app string, pro
 	return files
 }
 
-func syncFile(writer http.ResponseWriter, request *http.Request) {
+func syncSingleAppFiles(connection *websocket.Conn, clientApp util.AppNode) {
+	route := findRoute(clientApp)
+	log.Printf("find route[app:%s,profile:%s,label:%s]:%s", clientApp.Name, clientApp.Profile, clientApp.Label, route.Repo)
+	repo := getRepo(route.Repo, buildLocalRepoPath(route.Repo))
+	if repo == nil {
+		log.Println("cant find repo from disk,check you repostory url")
+		return
+	}
+
+	files := findConfigFiles(repo, route.Model, clientApp.Name, clientApp.Profile, clientApp.Label)
+	if files != nil {
+		bytes, err := json.Marshal(files)
+		if err != nil {
+			log.Println(err)
+			return
+		}
+
+		connection.WriteJSON(common.NewServerPushFileMessage(bytes))
+	} else {
+		log.Printf("no files for app:%s,profile:%s,label:%s", clientApp.Name, clientApp.Profile, clientApp.Label)
+	}
+}
+
+var writeChannels = new(sync.Map)
+
+func syncFile(writer http.ResponseWriter, request *http.Request, _ httprouter.Params) {
 	connection, err := upgrader.Upgrade(writer, request, nil)
 	if err != nil {
 		log.Println("upgrade error:", err)
 		return
 	}
-	defer connection.Close()
+	writeChannel := make(chan util.AppNode)
+	writeChannels.Store(writeChannel, writeChannel)
+
+	defer func() {
+		writeChannels.Delete(writeChannel)
+		connection.Close()
+	}()
 
 	done := make(chan struct{})
+	appNodeConfig := make([]util.AppNode, 5)
 	go func() {
 		defer close(done)
 		for {
@@ -229,50 +261,54 @@ func syncFile(writer http.ResponseWriter, request *http.Request) {
 			}
 
 			if common.ClientConnect == message.MessageType {
-				appNodeConfig := make([]util.AppNode, 5)
 				if err := json.Unmarshal(message.Data, &appNodeConfig); err != nil {
 					connection.WriteJSON(common.NewClientConnectReplyMessage([]byte(err.Error())))
 					return
 				}
 
 				for _, clientApp := range appNodeConfig {
-					route := findRoute(clientApp)
-					log.Printf("find route[app:%s,profile:%s,label:%s]:%s", clientApp.Name, clientApp.Profile, clientApp.Label, route.Repo)
-					repo := getRepo(route.Repo, buildLocalRepoPath(route.Repo))
-					if repo == nil {
-						log.Println("cant find repo from disk,check you repostory url")
-						continue
-					}
-
-					files := findConfigFiles(repo, route.Model, clientApp.Name, clientApp.Profile, clientApp.Label)
-					if files != nil {
-						bytes, err := json.Marshal(files)
-						if err != nil {
-							log.Println(err)
-							continue
-						}
-
-						connection.WriteJSON(common.NewServerPushFileMessage(bytes))
-					} else {
-						log.Printf("no files for app:%s,profile:%s,label:%s", clientApp.Name, clientApp.Profile, clientApp.Label)
-					}
+					syncSingleAppFiles(connection, clientApp)
 				}
 			} else {
-				panic("unsupported message type")
+				log.Println("unsupported message type")
 			}
 		}
 	}()
 
-	<-done
+	for {
+		select {
+		case <-done:
+			return
+		case app := <-writeChannel:
+			for _, clientApp := range appNodeConfig {
+				if app.Name != "" && app.Name != clientApp.Name {
+					continue
+				}
+				if app.Profile != "" && app.Profile != clientApp.Profile {
+					continue
+				}
+				if app.Label != "" && app.Label != clientApp.Label {
+					continue
+				}
+				syncSingleAppFiles(connection, clientApp)
+			}
+		}
+	}
 }
 
-func refresh(writer http.ResponseWriter, request *http.Request) {
-
+func refresh(_ http.ResponseWriter, _ *http.Request, ps httprouter.Params) {
+	writeChannels.Range(func(key, value interface{}) bool {
+		value.(chan util.AppNode) <- util.AppNode{Name: ps.ByName("app"), Label: ps.ByName("label"), Profile: ps.ByName("profile")}
+		return true
+	})
 }
 
 func main() {
-	http.HandleFunc("/sync", syncFile)
-	http.HandleFunc("/refresh", refresh)
-
-	log.Fatal(http.ListenAndServe(":"+strconv.Itoa(config.Port), nil))
+	router := httprouter.New()
+	router.GET("/sync", syncFile)
+	router.GET("/refresh", refresh)
+	router.GET("/refresh/:app", refresh)
+	router.GET("/refresh/:app/:profile", refresh)
+	router.GET("/refresh/:app/:profile/:label", refresh)
+	log.Fatal(http.ListenAndServe(":"+config.Port, router))
 }

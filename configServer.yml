@@ -31,8 +31,8 @@ sshKey: |-
         -----END RSA PRIVATE KEY-----
 #route:
 #  - pattern:
-#      - */*
+#      - "*/*"
 #    repo: git@github.com:liolay/${app}.git
 #  - pattern:
-#      - n*/pro*
+#      - "n*/pro*"
 #    repo: git@github.com:liolay/${app}-${profile}.git

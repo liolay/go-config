@@ -135,30 +135,3 @@ func main() {
 	<-done
 }
 
-//
-//func sync(syncFileDescribes []common.SyncFileDescribe) {
-//	for _, fd := range syncFileDescribes {
-//		if fd.Root != "" {
-//			create(fd.Root+fd.Name, fd.Content)
-//			continue
-//		}
-//
-//		for _, root := range config.HomePath {
-//			create(root+fd.Name, fd.Content)
-//		}
-//	}
-//}
-//
-//func create(filePath string, content []byte) {
-//	createParentDir(filePath)
-//	ioutil.WriteFile(filePath, content, os.ModePerm)
-//}
-//
-//func createParentDir(filePath string) {
-//	parentPath := string(filePath[:strings.LastIndex(filePath, "/")])
-//	if _, err := os.Stat(parentPath); os.IsNotExist(err) {
-//		if err = os.MkdirAll(parentPath, os.ModePerm); err != nil {
-//			panic(err)
-//		}
-//	}
-//}
