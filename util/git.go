@@ -11,7 +11,6 @@ import (
 )
 
 func Clone(home string, sshKey []byte, repoUrl string) *git.Repository {
-	print(home,":"+repoUrl)
 	keys, err := gitssh.NewPublicKeys("git", sshKey, "")
 	if err != nil {
 		log.Println("can't create PublicKeys", err)
@@ -25,8 +24,15 @@ func Clone(home string, sshKey []byte, repoUrl string) *git.Repository {
 		Progress:          os.Stdout,
 	})
 
+	_ = repo.Fetch(&git.FetchOptions{
+		Auth:     keys,
+		Progress: os.Stdout,
+		Force:    true,
+	})
+	//repo.Fetch(&git.FetchOptions{Progress: os.Stdout,Auth:keys,Force:true,Tags:git.AllTags,RefSpecs:[]config.RefSpec{"+refs/heads/*:refs/remotes/origin/*"}})
+
 	if err != nil {
-		log.Println("can't fetch repo from git server:",err)
+		log.Println("can't fetch repo from git server:", err)
 		return nil
 	}
 
@@ -41,24 +47,9 @@ func OpenLocalRepo(repoPath string) *git.Repository {
 	return nil
 }
 
-func CheckOut(repo *git.Repository, label string) {
-	if reference, err := repo.Head(); err == nil {
-		log.Printf("git show-ref --head HEAD : %s", reference.Hash())
-	}
-
-	if worktree, err := repo.Worktree(); err == nil {
-		log.Printf("git checkout %s", label)
-		worktree.Checkout(&git.CheckoutOptions{
-			Hash: plumbing.NewHash(label),
-		})
-	}
-
-	if reference, err := repo.Head(); err == nil {
-		log.Printf("git show-ref --head HEAD : %s", reference.Hash())
-	}
-}
 
 func FileIterator(repo *git.Repository, label string) *object.FileIter {
+
 	if referenceIter, err := repo.References(); err == nil {
 		var hash plumbing.Hash
 		referenceIter.ForEach(func(reference *plumbing.Reference) error {
@@ -74,14 +65,17 @@ func FileIterator(repo *git.Repository, label string) *object.FileIter {
 
 		commit, err := repo.CommitObject(hash);
 		if err != nil {
-			log.Fatal(err)
+			log.Printf("no commit id:%v", hash)
+			return nil
 		}
 
 		tree, err := commit.Tree();
 		if err != nil {
-			log.Fatal(err)
+			log.Printf("no tree with commit id:%v", hash)
+			return nil
 		}
 		return tree.Files()
 	}
+
 	return nil
 }

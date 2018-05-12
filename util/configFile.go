@@ -13,7 +13,7 @@ type ClientConfig struct {
 type AppNode struct {
 	Name     string   `yaml:"name"`
 	Profile  string   `yaml:"profile"`
-	Label    string   `yaml:"lable"`
+	Label    string   `yaml:"label"`
 	HomePath []string `yaml:"homePath"`
 }
 

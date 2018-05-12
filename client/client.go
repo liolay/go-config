@@ -13,6 +13,7 @@ import (
 	"io/ioutil"
 	"os/signal"
 	"encoding/json"
+	"path/filepath"
 )
 
 const defaultConfig = "configClient.yml"
@@ -72,22 +73,30 @@ func readMessage() {
 				err := message.Data
 				if err != nil {
 					log.Fatalln("client config file cant be parsed by server")
-					panic(string(err))
 				}
 				continue
 			}
 
 			if message.MessageType == common.ServerPushFile {
 				files := make([]common.ServerPushedFile, 5)
-				json.Unmarshal(message.Data, files)
+				if err := json.Unmarshal(message.Data, &files); err != nil {
+					log.Println(err)
+					continue
+				}
 
 				for _, file := range files {
 					for _, app := range config.App {
 						if file.App == app.Name {
 							for _, home := range app.HomePath {
-								fileFolder := home + "/" + file.App
-								if _, err := os.Stat(fileFolder); os.IsNotExist(err) {
-									os.MkdirAll(fileFolder, os.ModePerm)
+								path := home + "/" + file.Name
+								dir := filepath.Dir(path)
+								if _, err := os.Stat(dir); os.IsNotExist(err) {
+									os.MkdirAll(dir, os.ModePerm)
+								}
+
+								log.Printf("write file:%s", path)
+								if err := ioutil.WriteFile(path, file.Content, os.ModePerm); err != nil {
+									log.Println(err)
 								}
 							}
 							break
@@ -102,7 +111,6 @@ func readMessage() {
 	}()
 
 	configBytes, err := json.Marshal(config.App)
-
 	if err != nil {
 		panic(err)
 	}
