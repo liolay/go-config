@@ -1,6 +1,6 @@
 # go-config
 基于golang的配置管理
-### 功能
+## 功能
 * 客户端，服务端采用websocket链接，避免轮询pull
 * 支持使用git作为配置版本管理
 * 支持git branch，tag, commitId作为获取配置条件
@@ -11,14 +11,14 @@
 * *计划支持 可在浏览器页面直接修改仓库文件功能
 
 
-### 支持
+## 支持
 为了适应不同的系统，项目采用gox进行交叉编译，并使用upx对可执行文件进行压缩，这些可执行文件都存放于项目bin文件夹下，根据需要选择合适的可执行文件，目前支持的系统：
 * MacOS 32/64
 * Linux 32/64
 * Windows 32/64
 
-### 使用
-#### client
+## 使用
+### client
 ```
 ./client_{os}_{arch} configClient.yml
 ```
@@ -45,7 +45,7 @@ app:
 
 ```
 
-#### server
+### server
 ```
 ./server_{os}_{arch} configServer.yml
 ```
@@ -109,7 +109,7 @@ route:
 
 `关于为什么不在仓库地址中加入${label}:个人认为，label应当仅作为版本管理使用，在仓库地址中加入改变量会影响到版本控制`
 
-#### 刷新配置
+### 刷新配置
 server提供了如下endpoint可以方便刷新特定范围的配置：
 <table>
     <tr>
