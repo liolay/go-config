@@ -109,3 +109,29 @@ route:
 
 `关于为什么不在仓库地址中加入${label}:个人认为，label应当仅作为版本管理使用，在仓库地址中加入改变量会影响到版本控制`
 
+#### 刷新配置
+server提供了如下endpoint可以方便刷新特定范围的配置：
+<table>
+    <tr>
+        <th >endpoint</th>
+        <th >作用</th>
+    </tr>
+        <tr>
+            <td>/refresh</td>
+            <td>刷新所有配置</td>
+        </tr>
+  <tr>
+            <td>/refresh/:app</td>
+            <td>刷新指定应用配置</td>
+        </tr>   
+  <tr>
+            <td>/refresh/:app/:profile</td>
+            <td>刷新指定应用，指定profile配置</td>
+        </tr>   
+  <tr>
+            <td>/refresh/:app/:profile/:label</td>
+            <td>刷新指定应用，指定profile,指定label配置</td>
+        </tr>                     
+</table>
+
+
