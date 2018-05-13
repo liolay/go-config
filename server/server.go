@@ -210,8 +210,7 @@ func findConfigFiles(repo *git.Repository, model util.RepoModel, app string, pro
 	return files
 }
 
-func syncSingleAppFiles(connection *websocket.Conn, clientApp util.AppNode) {
-	route := findRoute(clientApp)
+func syncSingleAppFiles(connection *websocket.Conn, route *util.RRoute, clientApp util.AppNode) {
 	log.Printf("find route[app:%s,profile:%s,label:%s]:%s", clientApp.Name, clientApp.Profile, clientApp.Label, route.Repo)
 	repo := getRepo(route.Repo, buildLocalRepoPath(route.Repo))
 	if repo == nil {
@@ -267,7 +266,8 @@ func syncFile(writer http.ResponseWriter, request *http.Request, _ httprouter.Pa
 				}
 
 				for _, clientApp := range appNodeConfig {
-					syncSingleAppFiles(connection, clientApp)
+					route := findRoute(clientApp)
+					syncSingleAppFiles(connection, route, clientApp)
 				}
 			} else {
 				log.Println("unsupported message type")
@@ -290,7 +290,9 @@ func syncFile(writer http.ResponseWriter, request *http.Request, _ httprouter.Pa
 				if app.Label != "" && app.Label != clientApp.Label {
 					continue
 				}
-				syncSingleAppFiles(connection, clientApp)
+				route := findRoute(clientApp)
+				_ = os.RemoveAll(buildLocalRepoPath(route.Repo))
+				syncSingleAppFiles(connection, route, clientApp)
 			}
 		}
 	}
@@ -304,6 +306,8 @@ func refresh(_ http.ResponseWriter, _ *http.Request, ps httprouter.Params) {
 }
 
 func main() {
+	_ = os.RemoveAll(config.HomePath)
+
 	router := httprouter.New()
 	router.GET("/sync", syncFile)
 	router.GET("/refresh", refresh)
