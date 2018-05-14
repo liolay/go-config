@@ -8,10 +8,16 @@ import (
 	"gopkg.in/src-d/go-git.v4/plumbing"
 	"gopkg.in/src-d/go-git.v4/plumbing/object"
 	"strings"
+	"net"
+	"golang.org/x/crypto/ssh"
 )
 
 func Clone(home string, sshKey []byte, repoUrl string) *git.Repository {
 	keys, err := gitssh.NewPublicKeys("git", sshKey, "")
+	keys.HostKeyCallback = func(hostname string, remote net.Addr, key ssh.PublicKey) error {
+		return nil
+	}
+
 	if err != nil {
 		log.Println("can't create PublicKeys", err)
 		return nil
@@ -46,7 +52,6 @@ func OpenLocalRepo(repoPath string) *git.Repository {
 	}
 	return nil
 }
-
 
 func FileIterator(repo *git.Repository, label string) *object.FileIter {
 

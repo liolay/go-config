@@ -214,7 +214,7 @@ func syncSingleAppFiles(connection *websocket.Conn, route *util.RRoute, clientAp
 	log.Printf("find route[app:%s,profile:%s,label:%s]:%s", clientApp.Name, clientApp.Profile, clientApp.Label, route.Repo)
 	repo := getRepo(route.Repo, buildLocalRepoPath(route.Repo))
 	if repo == nil {
-		log.Println("cant find repo from disk,check you repostory url")
+		log.Println("cant find repo from disk,check your repostory url")
 		return
 	}
 
