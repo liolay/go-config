@@ -1,7 +1,7 @@
 # go-config
 基于golang的配置管理
 ## 功能
-* 客户端，服务端采用websocket链接，避免轮询pull
+* 客户端，服务端采用websocket链接，避免poll
 * 支持使用git作为配置版本管理
 * 支持git branch，tag, commitId作为获取配置条件
 * 支持仓库路由
